@@ -1,9 +1,7 @@
 import sys, pygame, time, numpy, argparse
 pygame.init()
 
-# Get rid of board, do stability check instead of blindly updating
-# if all live cells around a cell are stable then that cell is stable if it is to live
-# thus we can just worry about the volatile cells in the system
+# Use time to make updates less than desired to keep interactivity.
 
 class ConwaysGameOfLife(object):
     """An implementation of Conway's Game of Life."""
@@ -13,7 +11,7 @@ class ConwaysGameOfLife(object):
     def __init__(self, size=(32, 32), tile_size=10, updates_per_second=10):
         """The size must be divisible by tile_width."""
         self.green = (0, 255, 0)
-        self.gray = (50, 50, 100)
+        self.gray = (50, 50, 50)
         # Used to access all surrounding cells
         self.differences = ((-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1))
         
@@ -27,12 +25,12 @@ class ConwaysGameOfLife(object):
         self.green_tile.fill(self.green)
         self.gray_tile = pygame.surface.Surface((tile_size, tile_size))
         self.gray_tile.fill(self.gray)
-        pygame.display.flip()
+        pygame.display.set_caption("Conway's Game of Life")
+        pygame.display.flip() # show a gray screen
         
         self.new_alive_cells = []
         self.new_dead_cells = []
         self.alive_cells = set()
-        self.volatile_cells = set()
         self.counts = numpy.zeros((size[0]+2, size[1]+2))# +2 is so we don't have to bounds check later
         for i in xrange(0, size[0]+2):
             self.counts[i,0] = -100
@@ -43,7 +41,7 @@ class ConwaysGameOfLife(object):
     
     def run(self):
         """Start the main game loop, respond to events as needed."""
-        ITERATE_EVENT = 25
+        ITERATE_EVENT = 25 # Create our own event for signalling updating the game state
         from pygame import K_SPACE, K_RIGHT
         from pygame import QUIT, KEYUP, MOUSEBUTTONDOWN, MOUSEBUTTONUP, MOUSEMOTION
         pygame.event.set_allowed([QUIT, KEYUP, MOUSEBUTTONDOWN, MOUSEBUTTONUP, MOUSEMOTION, ITERATE_EVENT])
@@ -86,32 +84,7 @@ class ConwaysGameOfLife(object):
             self.new_alive_cells.append((i,j))
             self.alive_cells.add((i,j))
             self.increment_counts(i, j)
-            self.add_volatile_cells(i, j)
             self.update_screen()
-    
-    def add_volatile_cells(self, i, j):
-        """The counts must be correct before calling this."""
-        if (i,j) in self.alive_cells:
-            if self.counts[i,j] < 2 or self.counts[i,j] > 3:
-                self.volatile_cells.add((i, j))
-            elif (i,j) in self.volatile_cells:
-                self.volatile_cells.remove((i,j))
-        else:
-            if self.counts[i,j] == 3:
-                self.volatile_cells.add((i,j))
-            elif (i,j) in self.volatile_cells:
-                self.volatile_cells.remove((i,j))
-        for di,dj in self.differences:
-            if (i+di,j+dj) in self.alive_cells:
-                if self.counts[i+di,j+dj] < 2 or self.counts[i+di,j+dj] > 3:
-                    self.volatile_cells.add((i+di,j+dj))
-                elif (i+di,j+dj) in self.volatile_cells:
-                    self.volatile_cells.remove((i+di,j+dj))
-            else:
-                if self.counts[i+di,j+dj] == 3:
-                    self.volatile_cells.add((i+di,j+dj))
-                elif (i+di,j+dj) in self.volatile_cells:
-                    self.volatile_cells.remove((i+di,j+dj))
     
     def increment_counts(self, i, j):
         for di,dj in self.differences:
@@ -122,7 +95,7 @@ class ConwaysGameOfLife(object):
             self.counts[i+di, j+dj] -= 1
     
     def count_surrounding_alive(self, i, j):
-         # count alive neighbors
+        """Count alive neighbors."""
         alive_neighbors = 0
         for di,dj in self.differences:
             if (i+di, j+dj) in self.alive_cells:
@@ -131,60 +104,51 @@ class ConwaysGameOfLife(object):
     
     def update_screen(self):
         """Update the screen according to the new dead or alive cells."""
-        # Dirty Rectangle approach proved slower
-        #~ dirty_rects = []
-        #~ for i,j in self.new_alive_cells:
-            #~ rect = pygame.Rect(i*self.tile_size, j*self.tile_size, self.tile_size, self.tile_size)
-            #~ self.screen.blit(self.green_tile, rect)
-            #~ dirty_rects.append(rect)
-        #~ self.new_alive_cells = []
-        #~ for i,j in self.new_dead_cells:
-            #~ rect = pygame.Rect(i*self.tile_size, j*self.tile_size, self.tile_size, self.tile_size)
-            #~ self.screen.blit(self.gray_tile, rect)
-            #~ dirty_rects.append(rect)
-        #~ self.new_dead_cells = []
-        #~ pygame.display.update(dirty_rects)
-        
-        # Full refresh is faster
-        self.new_alive_cells = []
-        self.new_dead_cells = []
-        self.screen.fill(self.gray)
-        for i,j in self.alive_cells:
-            rect = pygame.Rect((i-1)*self.tile_size, (j-1)*self.tile_size, self.tile_size, self.tile_size)
-            self.screen.blit(self.green_tile, rect)
-        pygame.display.flip()
+        if len(self.new_dead_cells) + len(self.new_alive_cells) < 200:
+            dirty_rects = []
+            for i,j in self.new_alive_cells:
+                rect = pygame.Rect(i*self.tile_size, j*self.tile_size, self.tile_size, self.tile_size)
+                self.screen.blit(self.green_tile, rect)
+                dirty_rects.append(rect)
+            self.new_alive_cells = []
+            for i,j in self.new_dead_cells:
+                rect = pygame.Rect(i*self.tile_size, j*self.tile_size, self.tile_size, self.tile_size)
+                self.screen.blit(self.gray_tile, rect)
+                dirty_rects.append(rect)
+            self.new_dead_cells = []
+            pygame.display.update(dirty_rects)
+        else:
+            self.new_alive_cells = []
+            self.new_dead_cells = []
+            self.screen.fill(self.gray)
+            for i,j in self.alive_cells:
+                rect = pygame.Rect((i-1)*self.tile_size, (j-1)*self.tile_size, self.tile_size, self.tile_size)
+                self.screen.blit(self.green_tile, rect)
+            pygame.display.flip()
     
     def update(self):
         """Update each alive cell and any surounding dead cells."""
         start = time.time()
         # determine changes necessary to get to next state
-        self.relevant_dead_cells = set()
-        self.next_volatile_cells = set()
-        for i,j in self.volatile_cells:
-            self.update_cell(i, j)
+        relevant_dead_cells = set()
+        for i,j in self.alive_cells:
+            if self.counts[i,j] < 2 or self.counts[i,j] > 3:
+                self.new_dead_cells.append((i, j))
+            for di,dj in self.differences:
+                if (i+di,j+dj) not in self.alive_cells:
+                    relevant_dead_cells.add((i+di,j+dj))
+        for i,j in relevant_dead_cells:
+            if self.counts[i,j] == 3:
+                self.new_alive_cells.append((i,j))
         
         # update counts and volatile cells
         self.volatile_cells = set()
         for i,j in self.new_dead_cells:
             self.alive_cells.remove((i,j))
             self.decrement_counts(i, j)
-            self.add_volatile_cells(i, j)
         for i,j in self.new_alive_cells:
             self.alive_cells.add((i,j))
             self.increment_counts(i, j)
-            self.add_volatile_cells(i, j)
-        
-        # prune volatile cells
-        self.next_volatile_cells = set()
-        for i, j in self.volatile_cells:
-            if (i,j) in self.alive_cells:
-                if self.counts[i,j] < 2 or self.counts[i,j] > 3:
-                    self.next_volatile_cells.add((i,j))
-            else:
-                if self.counts[i,j] == 3:
-                    self.next_volatile_cells.add((i,j))
-        self.volatile_cells = self.next_volatile_cells
-        self.next_volatile_cells = None
         
         print 'Update:', time.time() - start
         start = time.time()
@@ -197,7 +161,7 @@ class ConwaysGameOfLife(object):
         # record changed status of cell
         if (i,j) in self.alive_cells:
             if self.counts[i,j] < 2 or self.counts[i,j] > 3:
-                self.new_dead_cells.append((i, j))
+                self.new_dead_cells.add((i, j))
         else:
             if self.counts[i,j] == 3:
                 self.new_alive_cells.append((i, j))
