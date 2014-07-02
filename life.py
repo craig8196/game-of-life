@@ -107,12 +107,12 @@ class ConwaysGameOfLife(object):
         if len(self.new_dead_cells) + len(self.new_alive_cells) < 200:
             dirty_rects = []
             for i,j in self.new_alive_cells:
-                rect = pygame.Rect(i*self.tile_size, j*self.tile_size, self.tile_size, self.tile_size)
+                rect = pygame.Rect((i-1)*self.tile_size, (j-1)*self.tile_size, self.tile_size, self.tile_size)
                 self.screen.blit(self.green_tile, rect)
                 dirty_rects.append(rect)
             self.new_alive_cells = []
             for i,j in self.new_dead_cells:
-                rect = pygame.Rect(i*self.tile_size, j*self.tile_size, self.tile_size, self.tile_size)
+                rect = pygame.Rect((i-1)*self.tile_size, (j-1)*self.tile_size, self.tile_size, self.tile_size)
                 self.screen.blit(self.gray_tile, rect)
                 dirty_rects.append(rect)
             self.new_dead_cells = []
@@ -155,17 +155,6 @@ class ConwaysGameOfLife(object):
         
         self.update_screen()
         print 'Update screen:', time.time() - start
-    
-    def update_cell(self, i, j):
-        """Update an alive cell."""
-        # record changed status of cell
-        if (i,j) in self.alive_cells:
-            if self.counts[i,j] < 2 or self.counts[i,j] > 3:
-                self.new_dead_cells.add((i, j))
-        else:
-            if self.counts[i,j] == 3:
-                self.new_alive_cells.append((i, j))
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Start Conway's Game of Life. The space bar starts iterating, clicking the mouse will create live cells. The right arrow will perform one iteration.")
